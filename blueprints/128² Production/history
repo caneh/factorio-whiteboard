@@ -1,5 +1,5 @@
 {
-    "minor": 41,
+    "minor": 42,
     "files": {
         "128² rails v2.0.0": "08762a0898a10af157ec46d85e740f02",
         "32² walls v1.1.7.txt": "8ded591b8b634a70ff5b1c7fd3e76489",
@@ -8,17 +8,18 @@
         "Book of Trains.txt": "33a503ed25816ee2c44cf32d810f5f95",
         "bps_compiler_of_book.py": "a1aa801ae91e3464803ea03709583585",
         "bps_decompiler_of_book.py": "587e7361c42808e95ea0b55b6e6b029e",
+        "bp_compiler_out_v1.34.41.txt": "a25864ef026a2adb4e26270f783cb699",
         "bp_from_json.py": "0acae81607f4c4a16bf3cb6256396534",
         "compile_blueprints.bat": "fa5637e06ba2af30a73e21d3511b3786",
-        "Fulgora.txt": "fa62abe64087243f427efb4b02c19f00",
+        "Fulgora.txt": "3300c97e5ff4e03736125fd0fcd03105",
         "Gleba.txt": "5fdfb59b2665183855c4a28d1cd5e15e",
         "makefile_bps.json": "bc15bf25ac05993ba24056215fa37ac1",
         "misc train stations.txt": "56895e0594348da387066fdc3f032af7",
         "modular early miners v2.0.txt": "d31f22eaae49c162cf9d29ab467eedfb",
         "Nauvis.txt": "65855088eea4d8f802ed942332f26d13",
-        "Power.txt": "021809c4dac144f762f5a266328730e7",
+        "Power.txt": "968556beec6f3a896b6a4a14b2f619f5",
         "Quality.txt": "0889e05498698e3c3660f4859999c86a",
-        "rush to bots.txt": "a9b0cd3cac8eeed22d65cf727fddeb53",
+        "rush to bots.txt": "aee0684ff9894e3ef3ad5dcf0527b242",
         "Science.txt": "ccb8dc044cfc2340e157576108c6dea9",
         "Ships.txt": "d80d0638177e358080a58ad8964c0b6b",
         "Starting game.txt": "962dad99f17cc0558524ad315f684cc7",
@@ -28,5 +29,5 @@
         "vandalism kit.txt": "93ff2b33834c0344d63a6c3dd367d941",
         "Vulcanus 1.0.txt": "a15cba1242ea90c37c20f8d12c5c0c68"
     },
-    "old_file_name": "bp_compiler_out_v1.34.41.txt"
+    "old_file_name": "bp_compiler_out_v1.34.42.txt"
 }
