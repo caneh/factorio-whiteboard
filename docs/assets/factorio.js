@@ -27,14 +27,31 @@ factorio.encodeBlueprint = (blueprintObject) => {
   return "0" + btoa(strChunks.join(""));
 };
 
-// return pairs [name, count] for entities in list in descending order of count
+// return [name, quality, count] triples for entities in list, grouped by
+// name+quality so different quality tiers of the same entity are counted
+// separately, in descending order of count
 factorio.getEntityCounts = (entities) => {
   const counter = {};
   entities.forEach((entity) => {
-    counter[entity.name] =
-      entity.name in counter ? counter[entity.name] + 1 : 1;
+    const quality = entity.quality || "normal";
+    const key = `${entity.name} ${quality}`;
+    counter[key] = key in counter ? counter[key] + 1 : 1;
   });
-  return [...Object.entries(counter)].sort((a, b) => b[1] - a[1]);
+  return Object.entries(counter)
+    .map(([key, count]) => [...key.split(" "), count])
+    .sort((a, b) => b[2] - a[2]);
+};
+
+// fetch with a timeout, so an unreachable server fails fast instead of
+// hanging on the browser's own (much longer) connection timeout
+factorio.fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeout);
+  }
 };
 
 factorio.getBlueprintImageUrl = async (blueprint) => {
@@ -43,24 +60,21 @@ factorio.getBlueprintImageUrl = async (blueprint) => {
     typeof blueprint === "string" || blueprint instanceof String
       ? blueprint
       : factorio.encodeBlueprint(blueprint);
-  function urlExists(url) {
-    const http = new XMLHttpRequest();
-    http.open('HEAD', url, false);
-    http.send();
-    return http.status === 200
+  async function urlExists(url) {
+    try {
+      const response = await factorio.fetchWithTimeout(url, { method: "HEAD" });
+      return response.status === 200;
+    } catch (error) {
+      console.log(error);
+      return false;
+    }
   }
   const sha1hexdigest = factorio.sha1(blueprintString);
   const imageUrl = `${factorio.FBSR_SERVER}/cache/${sha1hexdigest}.png`;
-  let imageUrlExists = false;
-  try {
-    imageUrlExists = urlExists(imageUrl);
-  } catch(error) {
-    imageUrlExists = false;
-    console.log(error);
-  }
+  const imageUrlExists = await urlExists(imageUrl);
   if (!imageUrlExists) {
     // post blueprint using JSON body
-    const response = await fetch(`${factorio.FBSR_SERVER}/blueprint`, {
+    const response = await factorio.fetchWithTimeout(`${factorio.FBSR_SERVER}/blueprint`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -85,13 +99,69 @@ factorio.itemToIconName = {
   "infinity-pipe": "pipe",
   "signal-check": "checked-green",
   "signal-dot": "list-dot",
+  // Factorio 2.0 renamed the original rail entities when introducing elevated
+  // rails; the old names are kept for blueprint backward-compatibility but
+  // share the same icon as their modern equivalent
+  "legacy-straight-rail": "rail",
+  "legacy-curved-rail": "curved-rail",
+  "elevated-straight-rail": "elevated-rail",
+  "legendary": "quality-legendary",
+  "uncommon": "quality-uncommon",
+  "linked-chest": "linked-chest-icon",
+  "raw-fish": "fish",
+  "entity-ghost": "ghost-entity",
+  "stone-path": "stone-brick",
+  "capture-robot-rocket": "capture-bot",
+  "discharge-defense-remote": "discharge-defense-equipment-controller",
+  "curved-rail-a": "curved-rail",
+  "elevated-curved-rail-a": "elevated-curved-rail",
+  "normal": "quality-normal",
+  "item-request-proxy": "item-request-slot",
+};
+
+// replace a missing icon image with a small placeholder instead of a broken image;
+// the real name is kept as a tooltip via `title`.
+// Some recipe icons (e.g. oil-processing recipes) are physically stored under
+// fluid/ by Wube even though they aren't fluids themselves - retry there once
+// before giving up, rather than maintaining a manual list of which ones.
+factorio.onIconMissing = (img, label) => {
+  if (!img.dataset.triedFluidFallback) {
+    img.dataset.triedFluidFallback = "1";
+    const filename = img.src.substring(img.src.lastIndexOf("/") + 1);
+    img.src = `${factorio.assetsPath}/factorio/icons/fluid/${filename}`;
+    return;
+  }
+  const span = document.createElement("span");
+  span.className = "icon icon-missing";
+  span.title = label;
+  span.textContent = "❓";
+  img.replaceWith(span);
+};
+
+// Factorio 2.0 quality tiers -> icon filename ("normal" has no badge in-game)
+factorio.qualityIconName = {
+  uncommon: "quality-uncommon",
+  rare: "quality-rare",
+  epic: "quality-epic",
+  legendary: "quality-legendary",
+};
+
+// wrap an icon's <img> markup with a small quality-tier badge in the corner
+factorio.withQualityBadge = (iconHtml, quality) => {
+  if (!quality || !(quality in factorio.qualityIconName)) {
+    return iconHtml;
+  }
+  const qualityFilename = factorio.qualityIconName[quality];
+  const qualitySrc = `${factorio.assetsPath}/factorio/icons/${qualityFilename}.png`;
+  return `<span class="icon-with-quality">${iconHtml}<img class="icon-quality-badge" src="${qualitySrc}" loading="lazy" alt="${quality}" onerror="this.remove()"></span>`;
 };
 
 // get <img> for entity icons
-factorio.getEntityIcon = (name) => {
+factorio.getEntityIcon = (name, quality) => {
   const filename = name in factorio.itemToIconName ? factorio.itemToIconName[name] : name;
   const src = `${factorio.assetsPath}/factorio/icons/${filename}.png`;
-  return `<img class="icon" src="${src}" loading="lazy" alt="${filename}">`;
+  const img = `<img class="icon" src="${src}" loading="lazy" alt="${filename}" onerror="factorio.onIconMissing(this, this.alt)">`;
+  return factorio.withQualityBadge(img, quality);
 };
 
 // get <img> for blueprint icons
@@ -101,7 +171,7 @@ factorio.getSignalIcon = (icon) => {
       ? factorio.itemToIconName[icon.signal.name]
       : icon.signal.name;
   if (icon.signal.type === "virtual") {
-    filename = `signal/${icon.signal.name.replace("-", "_")}`;
+    filename = `signal/${icon.signal.name.replace(/-/g, "_")}`;
   }
   if (icon.signal.type === "fluid") {
     filename = `fluid/${icon.signal.name}`;
@@ -113,17 +183,54 @@ factorio.getSignalIcon = (icon) => {
     filename = `list-dot`;
   }
   const src = `${factorio.assetsPath}/factorio/icons/${filename}.png`;
-  return `<img class="icon" src="${src}" loading="lazy" alt="[${icon.signal.type}=${icon.signal.name}]">`;
+  const label = icon.signal.name.replace(/'/g, "\\'");
+  const img = `<img class="icon" src="${src}" loading="lazy" alt="[${icon.signal.type}=${icon.signal.name}]" onerror="factorio.onIconMissing(this, '${label}')">`;
+  return factorio.withQualityBadge(img, icon.signal.quality);
 };
 
-// convert [color=pink]text[/color] and [item=explosives] tags to html
+// Factorio rich text tag types that reference an icon via a flat, fluid, or
+// virtual-signal path - same resolution rules as a blueprint's own icons
+factorio.richTextSignalType = {
+  item: "item",
+  entity: "item",
+  recipe: "item",
+  planet: "item",
+  "space-location": "item",
+  fluid: "fluid",
+  "virtual-signal": "virtual",
+};
+
+// convert Factorio rich text tags to html: [color=pink]text[/color],
+// [font=x]text[/font] (rendered as bold - actual game fonts aren't available
+// on the web), [item=name], [item=name,quality=x], standalone
+// [quality=legendary], [entity=/recipe=/fluid=/planet=/space-location=name],
+// and the general-purpose [img=type.name]
 factorio.formatString = (text) => {
   let formatted = text.replace(
     /\[color=(.+?)\](.+?)\[\/color\]/gm,
     `<span style="color:$1">$2</span>`
   );
-  formatted = formatted.replace(/\[item=(.+?)\]/gm, (match, name) => {
-    return factorio.getEntityIcon(name);
+  formatted = formatted.replace(/\[font=.+?\](.+?)\[\/font\]/gm, `<b>$1</b>`);
+  // standalone quality tag with no item, e.g. a blueprint label like
+  // "spawners ([quality=legendary])"; "normal" has no badge in-game
+  formatted = formatted.replace(/\[quality=([a-z]+)\]/gm, (match, quality) => {
+    if (!(quality in factorio.qualityIconName)) {
+      return "";
+    }
+    const filename = factorio.qualityIconName[quality];
+    const src = `${factorio.assetsPath}/factorio/icons/${filename}.png`;
+    return `<img class="icon" src="${src}" loading="lazy" alt="${quality}" onerror="factorio.onIconMissing(this, this.alt)">`;
+  });
+  formatted = formatted.replace(
+    /\[(item|entity|recipe|fluid|virtual-signal|planet|space-location)=([a-zA-Z0-9_-]+)(?:,quality=([a-z]+))?\]/gm,
+    (match, tagType, name, quality) => {
+      const signalType = factorio.richTextSignalType[tagType];
+      return factorio.getSignalIcon({ signal: { type: signalType, name, quality } });
+    }
+  );
+  formatted = formatted.replace(/\[img=([a-zA-Z0-9_-]+)\.([a-zA-Z0-9_-]+)\]/gm, (match, tagType, name) => {
+    const signalType = factorio.richTextSignalType[tagType] || tagType;
+    return factorio.getSignalIcon({ signal: { type: signalType, name } });
   });
   return formatted;
 };
@@ -164,9 +271,9 @@ factorio.getBlueprintHTML = (blueprint) => {
   // The CSS property `white-space: pre-line;` preserves newlines
   if ("settings" in blueprint) {
     console.log(JSON.stringify(blueprint.settings, null, 2));
-    const details = "entity_filters" in blueprint.settings 
-      ? blueprint.settings.entity_filters.map(({name, index}) => factorio.getEntityIcon(name)).join("") 
-      : blueprint.settings.mappers.map(({from, to}) => `${factorio.getEntityIcon(from.name)} &rarr; ${factorio.getEntityIcon(to.name)}`).join("<br />");
+    const details = "entity_filters" in blueprint.settings
+      ? blueprint.settings.entity_filters.map(({name, quality, index}) => factorio.getEntityIcon(name, quality)).join("")
+      : blueprint.settings.mappers.map(({from, to}) => `${factorio.getEntityIcon(from.name, from.quality)} &rarr; ${factorio.getEntityIcon(to.name, to.quality)}`).join("<br />");
     htmlFragments.push(
       `<div class="property-row">
         <!-- <div class="property-name">settings</div> -->
@@ -184,16 +291,16 @@ factorio.getBlueprintHTML = (blueprint) => {
         : blueprint.entities;
     const counts = factorio.getEntityCounts(allEntities);
     const maxCount = counts.reduce((acc, val) => {
-      return acc > val[1] ? acc : val[1];
+      return acc > val[2] ? acc : val[2];
     }, 0);
     const digits = `${maxCount}`.length;
     const leftPad = (count) => `${count}`.padStart(digits, "\u00A0");
-    counts.forEach(([name, count]) => {
+    counts.forEach(([name, quality, count]) => {
       totalCount += count;
       entities.push(
         `<div class="entity-count">
           <span class="count">${leftPad(count)}</span>
-          ${factorio.getEntityIcon(name)}
+          ${factorio.getEntityIcon(name, quality)}
           <span class="label">${name}</span>
         </div>`
       );
@@ -261,8 +368,15 @@ factorio.getBlueprintHTML = (blueprint) => {
       }).catch((error) => {
         const div = document.getElementById(uuid);
         div.style.whiteSpace = "pre-line";
-        div.style.color = "organge";
-        div.innerHTML = error.stack;
+        div.style.color = "orange";
+        // AbortError: our own fetch timeout; TypeError: fetch's generic
+        // network-failure error (refused, DNS, offline, CORS, etc.)
+        const unreachable = error.name === "AbortError" || error instanceof TypeError;
+        if (unreachable) {
+          div.textContent = `Preview server unreachable (${factorio.FBSR_SERVER}). The blueprint itself is unaffected - only its preview image couldn't be generated.`;
+        } else {
+          div.innerHTML = error.stack;
+        }
       });
       factorio.requestStagger += 150;
     }, factorio.requestStagger);

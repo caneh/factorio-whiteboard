@@ -56,6 +56,38 @@ img.icon {
   object-position: 0 0;
   vertical-align: middle;
 }
+span.icon-missing {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 0.75rem;
+  border-radius: 3px;
+  background: rgba(128, 128, 128, 0.2);
+  cursor: help;
+}
+span.icon-with-quality {
+  position: relative;
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+}
+span.icon-with-quality .icon {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+img.icon-quality-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 10px;
+  height: 10px;
+  object-fit: cover;
+}
 img.blueprint-preview {
   height: auto;
   min-height: none;
@@ -98,9 +130,13 @@ span.blueprint-label {
   left: 10px;
   display: block;
 }
-.label-icon .blueprint-icons.icons-1 img {
+.label-icon .blueprint-icons.icons-1 img.icon {
   height: 30px;
   width: 30px;
+}
+.label-icon .blueprint-icons.icons-1 .icon-with-quality {
+  width: 30px;
+  height: 30px;
 }
 .label-icon .blueprint-icons img {
   display: block;
