@@ -1,45 +1,50 @@
 name: automerge
 on:
   pull_request_target:
-    types: [opened, edited]
+    types: [opened, edited, synchronize]
     paths-ignore: ['.github/**/*', '.github']
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
-  checkEdits:
+  automerge:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout pull request branch on forked repo
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
-        ref: ${{github.event.pull_request.head.ref}}
-        repository: ${{github.event.pull_request.head.repo.full_name}}
-        token: ${{ github.token }}
-    - name: Check for blacklisted edits
-      run: |
-        #!/bin/bash
-        head=$(git rev-parse --abbrev-ref HEAD)
-        echo - head: $head
-        main=$(git merge-base $head origin/main)
-        echo - main: $main
-        diff_cmd="git diff --name-only $head $main"
-        echo - diff_cmd: $diff_cmd
-        diffs=$($diff_cmd)
-        echo '- diff_cmd result (below):'
-        echo $diffs
-        echo '- forbidden edits (below):'
-        if grep -i '\.github' <<<$diffs; then
-          exit 1;
-        else
-          exit 0;
-        fi
-  automerge:  # https://github.com/marketplace/actions/merge-pull-requests-automerge-action
-    needs: checkEdits
-    runs-on: ubuntu-latest
-    steps:
-      - name: automerge
-        uses: "pascalgn/automerge-action@v0.14.3"
+      - name: Reject PRs that touch .github
         env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-          MERGE_LABELS: ""
-          MERGE_DELETE_BRANCH: true
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          files=$(gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate --jq '.[].filename')
+          echo "Changed files:"
+          echo "$files"
+          if echo "$files" | grep -iq '^\.github'; then
+            echo "PR touches .github - refusing to automerge."
+            marker="<!-- automerge-github-path-blocked -->"
+            already_commented=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+              --paginate --jq ".[].body" | grep -F "$marker" || true)
+            if [ -z "$already_commented" ]; then
+              message="$marker
+          This pull request modifies files under \`.github/\`, which can't be merged automatically. Please remove those changes - everything else is welcome."
+              gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" -f body="$message"
+            fi
+            exit 1
+          fi
+
+      - name: Merge pull request (pinned to validated commit)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/merge" \
+            -X PUT \
+            -f sha="${{ github.event.pull_request.head.sha }}" \
+            -f merge_method="merge"
+
+      - name: Delete merged branch (same-repo PRs only)
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/git/refs/heads/${{ github.event.pull_request.head.ref }}" -X DELETE

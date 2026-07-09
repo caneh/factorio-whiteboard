@@ -1,8 +1,8 @@
-name: ci 
+name: ci
 on:
   push:
     branches:
-      - master 
+      - master
       - main
   workflow_run:
     workflows: ["automerge"]
@@ -12,12 +12,11 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
-          python-version: 3.x
-      - run: pip install mkdocs-material 
-      - run: pip install mkdocs-minify-plugin
-      - run: pip install mkdocs-gen-files
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
       - run: mkdocs gh-deploy --force

@@ -1,0 +1,46 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "mkdocs: setup & serve",
+      "type": "shell",
+      "command": "python",
+      "windows": {
+        "command": "python"
+      },
+      "linux": {
+        "command": "python3"
+      },
+      "osx": {
+        "command": "python3"
+      },
+      "args": [
+        "${workspaceFolder}/serve_docs.py"
+      ],
+      "isBackground": true,
+      "presentation": {
+        "reveal": "silent",
+        "focus": false,
+        "panel": "dedicated",
+        "group": "mkdocs"
+      },
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "."
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Installing dependencies",
+          "endsPattern": "Serving on"
+        }
+      },
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}
