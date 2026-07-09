@@ -101,6 +101,36 @@ span.blueprint-label {
   line-height: 50px;
   /* font-weight: bold; */
 }
+.copy-nested-button {
+  margin-left: 10px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  vertical-align: middle;
+  color: var(--md-default-fg-color--light, #666);
+  background: var(--md-code-bg-color, rgba(128, 128, 128, 0.15));
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.copy-nested-button img.icon {
+  width: 14px;
+  height: 14px;
+}
+/* the export icon is plain black linework with no built-in dark-mode
+   handling (unlike the full-color game icons) - invert it for contrast
+   against Material's dark "slate" scheme */
+[data-md-color-scheme="slate"] .copy-nested-button img.icon {
+  filter: invert(1);
+}
+.copy-nested-button:hover {
+  background: rgba(128, 128, 128, 0.3);
+}
+.copy-nested-button--done {
+  color: #2e7d32;
+}
 
 .label-icon {
   width: 50px;

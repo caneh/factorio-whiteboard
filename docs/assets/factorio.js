@@ -235,9 +235,39 @@ factorio.formatString = (text) => {
   return formatted;
 };
 
+// holds live references to every blueprint/book node rendered on the page,
+// keyed by uuid, so the copy button can re-encode just that subtree without
+// re-serializing it through an HTML attribute
+factorio.blueprintRegistry = {};
+
+// re-encode a single blueprint/book node (looked up by uuid) as a standalone
+// blueprint string and copy it to the clipboard - lets a user grab just one
+// nested blueprint out of a book instead of the whole thing
+factorio.copyNestedBlueprint = (uuid, button) => {
+  const blueprint = factorio.blueprintRegistry[uuid];
+  const wrapped = "blueprints" in blueprint ? { blueprint_book: blueprint } : { blueprint: blueprint };
+  const blueprintString = factorio.encodeBlueprint(wrapped);
+  const label = button.querySelector(".copy-nested-button-text");
+  navigator.clipboard.writeText(blueprintString).then(
+    () => {
+      label.textContent = "Copied!";
+      button.classList.add("copy-nested-button--done");
+      setTimeout(() => {
+        label.textContent = "Export to string";
+        button.classList.remove("copy-nested-button--done");
+      }, 1500);
+    },
+    () => {
+      label.textContent = "Copy failed";
+    }
+  );
+};
+
 // get html representation of blueprint object (called recursively for books)
 factorio.getBlueprintHTML = (blueprint) => {
   const htmlFragments = [];
+  const copyUuid = factorio.uuidv4();
+  factorio.blueprintRegistry[copyUuid] = blueprint;
   // blueprint label with item image
   const iconImg = factorio.getSignalIcon({
     signal: { name: blueprint.item, type: "item" },
@@ -254,6 +284,10 @@ factorio.getBlueprintHTML = (blueprint) => {
           <div class="blueprint-icons icons-${icons.length}">${icons.join("")}</div>
         </div>
         <span class="blueprint-label">${blueprint.label ? factorio.formatString(blueprint.label) : ""}<span>
+        <button type="button" class="copy-nested-button" title="Copy just this blueprint to clipboard" onclick="factorio.copyNestedBlueprint('${copyUuid}', this)">
+          <img class="icon" src="${factorio.assetsPath}/factorio/icons/export.png" loading="lazy" alt="export" onerror="factorio.onIconMissing(this, this.alt)">
+          <span class="copy-nested-button-text">Export to string</span>
+        </button>
         </div>
     </div>`
   );
